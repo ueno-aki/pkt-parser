@@ -4,14 +4,14 @@ pub mod reader {
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
     pub fn read_i32(buf: &[u8], offset: u64) -> Result<(i32, u64)> {
-        let values = BigEndian::read_i32(&buf[(offset as usize)..]);
-        let result = (values, 4);
+        let values: i32 = BigEndian::read_i32(&buf[(offset as usize)..]);
+        let result: (i32, u64) = (values, 4);
         Ok(result)
     }
 
     pub fn read_li32(buf: &[u8], offset: u64) -> Result<(i32, u64)> {
-        let values = LittleEndian::read_i32(&buf[(offset as usize)..]);
-        let result = (values, 4);
+        let values: i32 = LittleEndian::read_i32(&buf[(offset as usize)..]);
+        let result: (i32, u64) = (values, 4);
         Ok(result)
     }
 
@@ -60,7 +60,7 @@ pub mod writer {
 
     pub fn write_var_int(value: u64, buf: &mut Vec<u8>) -> Result<u64> {
         let mut cursor: u64 = 0;
-        let mut v = value.clone();
+        let mut v: u64 = value.clone();
         while (v & !0x7f) != 0 {
             buf.write_u8(((v & 0xff) | 0x80) as u8).unwrap();
             cursor += 1;

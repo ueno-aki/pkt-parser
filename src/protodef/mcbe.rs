@@ -3,7 +3,7 @@ use std::io::Result;
 use super::native_types::reader::read_li32;
 
 pub fn little_string(buf: &[u8], offset: u64) -> Result<(String, u64)> {
-    let mut cursor = offset;
+    let mut cursor: u64 = offset;
     let (value, size) = read_li32(buf, offset).unwrap();
     cursor += size;
     if cursor + (value as u64) > buf.len().try_into().unwrap() {

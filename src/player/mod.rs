@@ -38,19 +38,22 @@ impl Player {
         }
     }
     async fn handle(&self, buffer: Vec<u8>) {
-        let flate = match decompress(&buffer) {
+        let flate: Vec<u8> = match decompress(&buffer) {
             Ok(buffer) => buffer,
             Err(_) => buffer,
         };
 
-        let pkts = get_packets(&flate).unwrap();
+        let pkts: Vec<Vec<u8>> = get_packets(&flate).unwrap();
         for pkt in pkts {
-            let parsed_pkt = parse_packet(&pkt, 0).unwrap();
+            let parsed_pkt: Packet = parse_packet(&pkt, 0).unwrap();
             println!("client={},packet={}", self.address.to_string(), parsed_pkt);
 
             match parsed_pkt.kind {
                 PacketTypes::RequestNetworkSetting(_) => {
                     self.send_network_settings().await;
+                }
+                PacketTypes::Login(pkt) => {
+                    println!("[LoginToken]identity = {}",pkt.identity);
                 }
                 _ => {}
             };
@@ -58,7 +61,7 @@ impl Player {
     }
 
     async fn send_network_settings(&self) {
-        let network = Packet {
+        let network: Packet = Packet {
             id: 143,
             kind: PacketTypes::NetworkSettings(NetworkSettings {
                 compression_threshold: 512,
@@ -90,15 +93,15 @@ pub fn decompress(buf: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn get_packets(buf: &[u8]) -> Result<Vec<Vec<u8>>> {
-    let mut packets = Vec::new();
+    let mut packets: Vec<Vec<u8>> = Vec::new();
     let mut offset: u64 = 0;
 
     while offset < buf.len().try_into().unwrap() {
         let (value, size) = read_varint(buf, offset)?;
         let mut dec: Vec<u8> = vec![0; value as usize];
         offset += size;
-        let edge = offset + value;
-        dec.copy_from_slice(&buf[(offset as usize)..(edge as usize)]);
+        let edge = (offset + value) as usize;
+        dec.copy_from_slice(&buf[(offset as usize)..edge]);
         offset += value;
         packets.push(dec);
     }
@@ -107,7 +110,7 @@ pub fn get_packets(buf: &[u8]) -> Result<Vec<Vec<u8>>> {
 
 pub fn parse_packet(buf: &[u8], offset: u64) -> Result<Packet> {
     let (name_value, name_size) = read_varint(buf, offset)?;
-    let mut x = match name_value {
+    let mut x: Packet = match name_value {
         1 => Login::new(buf, offset + name_size)?,
         193 => RequestNetworkSetting::new(buf, offset + name_size)?,
         _ => todo!(),
