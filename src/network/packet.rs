@@ -1,10 +1,10 @@
 use std::io::Result;
 
 use crate::protodef::{
-    mcbe::little_string,
+    mcbe::{reader::write_little_string, writer::write_string},
     native_types::{
         reader::{read_i32, read_varint},
-        writer::{write_bool, write_lf32, write_lu16, write_u8},
+        writer::{write_bool, write_i32, write_lf32, write_lu16, write_u8},
     },
 };
 
@@ -24,9 +24,9 @@ impl Login {
         cursor += protocol_version_size;
         let (_payload, payload_size) = read_varint(buf, cursor)?;
         cursor += payload_size;
-        let (identity, identity_size) = little_string(buf, cursor)?;
+        let (identity, identity_size) = write_little_string(buf, cursor)?;
         cursor += identity_size;
-        let (client, client_size) = little_string(buf, cursor)?;
+        let (client, client_size) = write_little_string(buf, cursor)?;
         cursor += client_size;
         let login = Login {
             protocol_version,
@@ -57,6 +57,47 @@ impl RequestNetworkSetting {
             size: client_protocol_size,
             buffer: buf.to_owned(),
         })
+    }
+}
+
+#[derive(Debug)]
+pub struct PlayStatus {
+    pub status: Status,
+}
+
+impl PlayStatus {
+    pub fn compose(buffer: &mut Vec<u8>, packet: Self) -> Result<()> {
+        write_i32(packet.status as i32, buffer)?;
+        Ok(())
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub enum Status {
+    LoginSuccess,
+    FailedClient,
+    FailedSpawn,
+    PlayerSpawn,
+    FailedInvalidTenant,
+    FailedVanillaEdu,
+    FailedEduVanilla,
+    FailedServerFull,
+    FailedEditorVanillaMismatch,
+    FailedVanillaEditorMismatch,
+}
+
+#[derive(Debug)]
+pub struct Disconnect {
+    pub hide_disconnect_reason: bool,
+    pub message: String,
+}
+
+impl Disconnect {
+    pub fn compose(buffer: &mut Vec<u8>, packet: Self) -> Result<()> {
+        write_bool(packet.hide_disconnect_reason, buffer).unwrap();
+        write_string(packet.message, buffer).unwrap();
+        Ok(())
     }
 }
 

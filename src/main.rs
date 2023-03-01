@@ -25,7 +25,10 @@ async fn main() {
 }
 #[cfg(test)]
 mod tests {
-    use crate::protodef::native_types::writer::{write_bool, write_lu16, write_var_int};
+    use crate::protodef::{
+        mcbe::writer::write_string,
+        native_types::writer::{write_bool, write_lu16, write_var_int},
+    };
 
     use super::*;
     use std::{fs::File, io::Read};
@@ -58,6 +61,7 @@ mod tests {
         write_var_int(142862, &mut buffer).unwrap();
         write_lu16(44829, &mut buffer).unwrap();
         write_bool(false, &mut buffer).unwrap();
+        write_string("abcdeg".to_owned(), &mut buffer).unwrap();
         println!("{:?},{:?}", buf, buffer);
     }
 }

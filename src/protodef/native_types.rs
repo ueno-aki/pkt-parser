@@ -41,20 +41,25 @@ pub mod reader {
 pub mod writer {
     use std::io::Result;
 
-    use byteorder::{LittleEndian, WriteBytesExt};
+    use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 
     pub fn write_u8(value: u8, buf: &mut Vec<u8>) -> Result<()> {
-        buf.write_u8(value).unwrap();
+        buf.write_u8(value)?;
+        Ok(())
+    }
+
+    pub fn write_i32(value: i32, buf: &mut Vec<u8>) -> Result<()> {
+        buf.write_i32::<BigEndian>(value)?;
         Ok(())
     }
 
     pub fn write_lu16(value: u16, buf: &mut Vec<u8>) -> Result<()> {
-        buf.write_u16::<LittleEndian>(value).unwrap();
+        buf.write_u16::<LittleEndian>(value)?;
         Ok(())
     }
 
     pub fn write_lf32(value: f32, buf: &mut Vec<u8>) -> Result<()> {
-        buf.write_f32::<LittleEndian>(value).unwrap();
+        buf.write_f32::<LittleEndian>(value)?;
         Ok(())
     }
 
@@ -62,11 +67,11 @@ pub mod writer {
         let mut cursor: u64 = 0;
         let mut v: u64 = value.clone();
         while (v & !0x7f) != 0 {
-            buf.write_u8(((v & 0xff) | 0x80) as u8).unwrap();
+            buf.write_u8(((v & 0xff) | 0x80) as u8)?;
             cursor += 1;
             v >>= 7;
         }
-        buf.write_u8(v as u8).unwrap();
+        buf.write_u8(v as u8)?;
         Ok(cursor + 1)
     }
 

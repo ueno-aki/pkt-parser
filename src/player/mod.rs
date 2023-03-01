@@ -7,7 +7,10 @@ use rust_raknet::RaknetSocket;
 
 use crate::{
     network::{
-        packet::{CompressionAlgorithmType, Login, NetworkSettings, RequestNetworkSetting},
+        packet::{
+            CompressionAlgorithmType, Disconnect, Login, NetworkSettings, PlayStatus,
+            RequestNetworkSetting, Status,
+        },
         Packet, PacketTypes,
     },
     protodef::native_types::{reader::read_varint, writer::write_var_int},
@@ -49,13 +52,18 @@ impl Player {
             println!("client={},packet={}", self.address.to_string(), parsed_pkt);
 
             match parsed_pkt.kind {
-                PacketTypes::RequestNetworkSetting(_) => {
-                    self.send_network_settings().await;
-                }
+                PacketTypes::RequestNetworkSetting(pkt) => match pkt.client_protocol {
+                    n if n > 567 => {
+                        self.send_status(Status::FailedSpawn).await;
+                        self.socket.flush().await.unwrap();
+                        self.socket.close().await.unwrap();
+                    },
+                    _ => self.send_network_settings().await,
+                },
                 PacketTypes::Login(pkt) => {
-                    println!("[LoginToken]identity = {}",pkt.identity);
+                    println!("[LoginToken]identity = {}", pkt.identity);
                 }
-                _ => {}
+                _ => todo!(),
             };
         }
     }
@@ -78,6 +86,27 @@ impl Player {
         self.socket
             .send(
                 &[vec![0xfe], compose_packet(network).unwrap()].concat(),
+                rust_raknet::Reliability::ReliableOrdered,
+            )
+            .await
+            .unwrap();
+    }
+
+    async fn send_status(&self, status: Status) {
+        let failed_spawn = Packet {
+            id: 2,
+            kind: PacketTypes::PlayStatus(PlayStatus { status }),
+            size: 0,
+            buffer: vec![0],
+        };
+        println!(
+            "client={},packet={}",
+            self.address.to_string(),
+            failed_spawn
+        );
+        self.socket
+            .send(
+                &[vec![0xfe], compose_packet(failed_spawn).unwrap()].concat(),
                 rust_raknet::Reliability::ReliableOrdered,
             )
             .await
@@ -123,11 +152,13 @@ pub fn compose_packet(packet: Packet) -> Result<Vec<u8>> {
     let mut buffer: Vec<u8> = Vec::new();
     write_var_int(packet.id, &mut buffer).unwrap();
     match packet.kind {
-        PacketTypes::NetworkSettings(pkt) => NetworkSettings::compose(&mut buffer, pkt).unwrap(),
+        PacketTypes::NetworkSettings(pkt) => NetworkSettings::compose(&mut buffer, pkt)?,
+        PacketTypes::PlayStatus(pkt) => PlayStatus::compose(&mut buffer, pkt)?,
+        PacketTypes::Disconnect(pkt) => Disconnect::compose(&mut buffer, pkt)?,
         _ => todo!(),
     };
     let mut result: Vec<u8> = Vec::new();
-    write_var_int(buffer.len() as u64, &mut result).unwrap();
+    write_var_int(buffer.len() as u64, &mut result)?;
     Ok([result, buffer].concat())
 }
 
