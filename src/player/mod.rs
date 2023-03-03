@@ -7,6 +7,7 @@ use rust_raknet::RaknetSocket;
 
 use crate::{
     network::{
+        login::decode_login_jwt,
         packet::{
             CompressionAlgorithmType, Disconnect, Login, NetworkSettings, PlayStatus,
             RequestNetworkSetting, Status,
@@ -53,15 +54,15 @@ impl Player {
 
             match parsed_pkt.kind {
                 PacketTypes::RequestNetworkSetting(pkt) => match pkt.client_protocol {
-                    n if n > 567 => {
+                    n if n > 568 => {
                         self.send_status(Status::FailedSpawn).await;
                         self.socket.flush().await.unwrap();
                         self.socket.close().await.unwrap();
-                    },
+                    }
                     _ => self.send_network_settings().await,
                 },
                 PacketTypes::Login(pkt) => {
-                    println!("[LoginToken]identity = {}", pkt.identity);
+                    decode_login_jwt(pkt).unwrap();
                 }
                 _ => todo!(),
             };
