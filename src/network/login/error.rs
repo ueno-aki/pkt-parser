@@ -9,5 +9,5 @@ pub enum LoginError {
     #[error("Wrong claim.")]
     WrongClaim,
     #[error("Wrong SkinData claim.")]
-    WrongSkinData
+    WrongSkinData,
 }

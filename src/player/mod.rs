@@ -107,10 +107,7 @@ impl Player {
     async fn send_disconnect(&self, value: Disconnect) {
         let disconnect = Packet {
             id: 5,
-            kind: PacketTypes::Disconnect(Disconnect {
-                hide_disconnect_reason: value.hide_disconnect_reason,
-                message: value.message,
-            }),
+            kind: PacketTypes::Disconnect(value),
             size: 0,
             buffer: vec![0],
         };
