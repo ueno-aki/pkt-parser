@@ -15,8 +15,7 @@ async fn main() {
         .set_motd("rust-raknet", 20, "567", "1.19.62", "Survival", 19132)
         .await;
     listener.listen().await;
-    loop {
-        let socket = listener.accept().await.unwrap();
+    while let Ok(socket) = listener.accept().await {
         tokio::spawn(async move {
             let player = Player::new(socket);
             player.listen().await;

@@ -1,7 +1,7 @@
 use std::io::Result;
 
 use crate::protodef::{
-    mcbe::{reader::write_little_string, writer::write_string},
+    mcbe::{reader::read_little_string, writer::write_string},
     native_types::{
         reader::{read_i32, read_varint},
         writer::{write_bool, write_i32, write_lf32, write_lu16, write_u8},
@@ -24,9 +24,9 @@ impl Login {
         cursor += protocol_version_size;
         let (_payload, payload_size) = read_varint(buf, cursor)?;
         cursor += payload_size;
-        let (identity, identity_size) = write_little_string(buf, cursor)?;
+        let (identity, identity_size) = read_little_string(buf, cursor)?;
         cursor += identity_size;
-        let (client, client_size) = write_little_string(buf, cursor)?;
+        let (client, client_size) = read_little_string(buf, cursor)?;
         cursor += client_size;
         let login = Login {
             protocol_version,
@@ -113,10 +113,7 @@ pub struct NetworkSettings {
 impl NetworkSettings {
     pub fn compose(buffer: &mut Vec<u8>, packet: Self) -> Result<()> {
         write_lu16(packet.compression_threshold, buffer).unwrap();
-        match packet.compression_algorithm {
-            CompressionAlgorithmType::Deflate => write_lu16(0, buffer).unwrap(),
-            CompressionAlgorithmType::Snappy => write_lu16(1, buffer).unwrap(),
-        };
+        write_lu16(packet.compression_algorithm as u16, buffer).unwrap();
         write_bool(packet.client_throttle, buffer).unwrap();
         write_u8(packet.client_throttle_threshold, buffer).unwrap();
         write_lf32(packet.client_throttle_scalar, buffer).unwrap();

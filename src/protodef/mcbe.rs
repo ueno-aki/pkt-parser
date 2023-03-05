@@ -2,7 +2,7 @@ pub mod reader {
     use crate::protodef::native_types::reader::read_li32;
     use std::io::Result;
 
-    pub fn write_little_string(buf: &[u8], offset: u64) -> Result<(String, u64)> {
+    pub fn read_little_string(buf: &[u8], offset: u64) -> Result<(String, u64)> {
         let mut cursor: u64 = offset;
         let (value, size) = read_li32(buf, offset).unwrap();
         cursor += size;

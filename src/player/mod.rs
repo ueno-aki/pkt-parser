@@ -6,14 +6,7 @@ use std::{
 use rust_raknet::RaknetSocket;
 
 use crate::{
-    network::{
-        login::decode_login_jwt,
-        packet::{
-            CompressionAlgorithmType, Disconnect, Login, NetworkSettings, PlayStatus,
-            RequestNetworkSetting, Status,
-        },
-        Packet, PacketTypes,
-    },
+    network::{login::decode_login_jwt, packet::*, Packet, PacketTypes},
     protodef::native_types::{reader::read_varint, writer::write_var_int},
 };
 
@@ -30,16 +23,12 @@ impl Player {
     }
 
     pub async fn listen(&self) {
-        loop {
-            if let Ok(buf) = self.socket.recv().await {
-                if buf[0] == 0xfe {
-                    self.handle(buf[1..].to_vec()).await;
-                }
-            } else {
-                println!("disconnected");
-                break;
+        while let Ok(buf) = self.socket.recv().await {
+            if buf[0] == 0xfe {
+                self.handle(buf[1..].to_vec()).await;
             }
         }
+        println!("disconnected");
     }
     async fn handle(&self, buffer: Vec<u8>) {
         let flate: Vec<u8> = match decompress(&buffer) {
@@ -63,6 +52,7 @@ impl Player {
                 },
                 PacketTypes::Login(pkt) => {
                     decode_login_jwt(pkt).unwrap();
+                    self.socket.close().await.unwrap();
                 }
                 _ => todo!(),
             };
@@ -108,6 +98,25 @@ impl Player {
         self.socket
             .send(
                 &[vec![0xfe], compose_packet(failed_spawn).unwrap()].concat(),
+                rust_raknet::Reliability::ReliableOrdered,
+            )
+            .await
+            .unwrap();
+    }
+
+    async fn send_disconnect(&self, value: Disconnect) {
+        let disconnect = Packet {
+            id: 5,
+            kind: PacketTypes::Disconnect(Disconnect {
+                hide_disconnect_reason: value.hide_disconnect_reason,
+                message: value.message,
+            }),
+            size: 0,
+            buffer: vec![0],
+        };
+        self.socket
+            .send(
+                &[vec![0xfe], compose_packet(disconnect).unwrap()].concat(),
                 rust_raknet::Reliability::ReliableOrdered,
             )
             .await
