@@ -69,25 +69,19 @@ impl Player {
     }
 
     async fn send_network_settings(&self) {
-        let network: Packet = Packet {
-            id: 143,
-            kind: PacketTypes::NetworkSettings(NetworkSettings {
-                compression_threshold: 512,
-                compression_algorithm: CompressionAlgorithmType::Deflate,
-                client_throttle: false,
-                client_throttle_threshold: 0,
-                client_throttle_scalar: 0.0,
-            }),
-        };
-        self.send_packet(network).await;
+        let network = PacketTypes::NetworkSettings(NetworkSettings {
+            compression_threshold: 512,
+            compression_algorithm: CompressionAlgorithmType::Deflate,
+            client_throttle: false,
+            client_throttle_threshold: 0,
+            client_throttle_scalar: 0.0,
+        });
+        self.send_packet(network.into()).await;
     }
 
     async fn disconnect_with_status(&self, status: Status) {
-        let failed_spawn = Packet {
-            id: 2,
-            kind: PacketTypes::PlayStatus(PlayStatus { status }),
-        };
-        self.send_packet(failed_spawn).await;
+        let failed_spawn = PacketTypes::PlayStatus(PlayStatus { status });
+        self.send_packet(failed_spawn.into()).await;
         self.socket.flush().await.unwrap();
         self.socket.close().await.unwrap();
     }
