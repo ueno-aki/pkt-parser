@@ -3,19 +3,26 @@ pub mod network_settings;
 pub mod play_status;
 pub mod request_network_settings;
 
-use std::fmt::Display;
-
 use self::{
     login::Login, network_settings::NetworkSettings, play_status::PlayStatus,
     request_network_settings::RequestNetworkSetting,
 };
+
+#[derive(Debug)]
+pub enum PacketTypes {
+    Login(Login),
+    PlayStatus(PlayStatus),
+    RequestNetworkSetting(RequestNetworkSetting),
+    NetworkSettings(NetworkSettings),
+}
+
 #[derive(Debug)]
 pub struct Packet {
     pub id: u64,
     pub kind: PacketTypes,
 }
 
-impl Display for Packet {
+impl std::fmt::Display for Packet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.id {
             1 => write!(f, "[C->S] LoginPacket"),
@@ -26,10 +33,9 @@ impl Display for Packet {
         }
     }
 }
-
 impl From<PacketTypes> for Packet {
     fn from(value: PacketTypes) -> Self {
-        let id = match value {
+        let id: u64 = match value {
             PacketTypes::Login(_) => 1,
             PacketTypes::PlayStatus(_) => 2,
             PacketTypes::NetworkSettings(_) => 143,
@@ -37,12 +43,4 @@ impl From<PacketTypes> for Packet {
         };
         Packet { id, kind: value }
     }
-}
-
-#[derive(Debug)]
-pub enum PacketTypes {
-    Login(Login),
-    PlayStatus(PlayStatus),
-    RequestNetworkSetting(RequestNetworkSetting),
-    NetworkSettings(NetworkSettings),
 }
