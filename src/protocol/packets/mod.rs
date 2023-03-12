@@ -1,15 +1,18 @@
 pub mod login;
-pub mod packet;
+pub mod network_settings;
+pub mod play_status;
+pub mod request_network_settings;
 
 use std::fmt::Display;
 
-use packet::*;
+use self::{
+    login::Login, network_settings::NetworkSettings, play_status::PlayStatus,
+    request_network_settings::RequestNetworkSetting,
+};
 #[derive(Debug)]
 pub struct Packet {
     pub id: u64,
     pub kind: PacketTypes,
-    pub size: u64,
-    pub buffer: Vec<u8>,
 }
 
 impl Display for Packet {
@@ -24,11 +27,22 @@ impl Display for Packet {
     }
 }
 
+impl From<PacketTypes> for Packet {
+    fn from(value: PacketTypes) -> Self {
+        let id = match value {
+            PacketTypes::Login(_) => 1,
+            PacketTypes::PlayStatus(_) => 2,
+            PacketTypes::NetworkSettings(_) => 143,
+            PacketTypes::RequestNetworkSetting(_) => 193,
+        };
+        Packet { id, kind: value }
+    }
+}
+
 #[derive(Debug)]
 pub enum PacketTypes {
     Login(Login),
     PlayStatus(PlayStatus),
-    Disconnect(Disconnect),
     RequestNetworkSetting(RequestNetworkSetting),
     NetworkSettings(NetworkSettings),
 }

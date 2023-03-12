@@ -1,13 +1,15 @@
-use std::{
-    io::{prelude::*, Result},
-    net::SocketAddr,
-};
-
 use rust_raknet::RaknetSocket;
+use std::net::SocketAddr;
 
-use crate::{
-    network::{login::decode_login_jwt, packet::*, Packet, PacketTypes},
-    protodef::native_types::{reader::read_varint, writer::write_var_int},
+use crate::protocol::{
+    compresstion::{compose_packet, decompress, get_packets, parse_packet},
+    login::login_verify::{verify_auth, verify_skin},
+    packets::{
+        login::Login,
+        network_settings::{CompressionAlgorithmType, NetworkSettings},
+        play_status::{PlayStatus, Status},
+        Packet, PacketTypes,
+    },
 };
 
 pub struct Player {
@@ -43,20 +45,27 @@ impl Player {
 
             match parsed_pkt.kind {
                 PacketTypes::RequestNetworkSetting(pkt) => match pkt.client_protocol {
-                    n if n > 568 => {
-                        self.send_status(Status::FailedSpawn).await;
-                        self.socket.flush().await.unwrap();
-                        self.socket.close().await.unwrap();
-                    }
+                    n if n > 568 => self.disconnect_with_status(Status::FailedSpawn).await,
                     _ => self.send_network_settings().await,
                 },
                 PacketTypes::Login(pkt) => {
-                    decode_login_jwt(pkt).unwrap();
+                    self.decode_jwt(pkt);
                     self.socket.close().await.unwrap();
                 }
                 _ => todo!(),
             };
         }
+    }
+
+    pub async fn send_packet(&self, packet: Packet) {
+        println!("client={},packet={}", self.address.to_string(), packet);
+        self.socket
+            .send(
+                &[vec![0xfe], compose_packet(packet).unwrap()].concat(),
+                rust_raknet::Reliability::ReliableOrdered,
+            )
+            .await
+            .unwrap();
     }
 
     async fn send_network_settings(&self) {
@@ -69,109 +78,23 @@ impl Player {
                 client_throttle_threshold: 0,
                 client_throttle_scalar: 0.0,
             }),
-            size: 0,
-            buffer: vec![0],
         };
-        println!("client={},packet={}", self.address.to_string(), network);
-
-        self.socket
-            .send(
-                &[vec![0xfe], compose_packet(network).unwrap()].concat(),
-                rust_raknet::Reliability::ReliableOrdered,
-            )
-            .await
-            .unwrap();
+        self.send_packet(network).await;
     }
 
-    async fn send_status(&self, status: Status) {
+    async fn disconnect_with_status(&self, status: Status) {
         let failed_spawn = Packet {
             id: 2,
             kind: PacketTypes::PlayStatus(PlayStatus { status }),
-            size: 0,
-            buffer: vec![0],
         };
-        println!(
-            "client={},packet={}",
-            self.address.to_string(),
-            failed_spawn
-        );
-        self.socket
-            .send(
-                &[vec![0xfe], compose_packet(failed_spawn).unwrap()].concat(),
-                rust_raknet::Reliability::ReliableOrdered,
-            )
-            .await
-            .unwrap();
+        self.send_packet(failed_spawn).await;
+        self.socket.flush().await.unwrap();
+        self.socket.close().await.unwrap();
     }
 
-    async fn send_disconnect(&self, value: Disconnect) {
-        let disconnect = Packet {
-            id: 5,
-            kind: PacketTypes::Disconnect(value),
-            size: 0,
-            buffer: vec![0],
-        };
-        self.socket
-            .send(
-                &[vec![0xfe], compose_packet(disconnect).unwrap()].concat(),
-                rust_raknet::Reliability::ReliableOrdered,
-            )
-            .await
-            .unwrap();
+    fn decode_jwt(&self, login: Login) {
+        let v = verify_auth(&login.identity).unwrap();
+        let skin_data = verify_skin(&v.key, &login.client).unwrap();
+        println!("{:?},{:?}", v, skin_data);
     }
 }
-
-pub fn decompress(buf: &[u8]) -> Result<Vec<u8>> {
-    let mut decoder = flate2::bufread::DeflateDecoder::new(&buf[..]);
-    let mut s: Vec<u8> = Vec::new();
-    decoder.read_to_end(&mut s)?;
-    Ok(s)
-}
-
-pub fn get_packets(buf: &[u8]) -> Result<Vec<Vec<u8>>> {
-    let mut packets: Vec<Vec<u8>> = Vec::new();
-    let mut offset: u64 = 0;
-
-    while offset < buf.len().try_into().unwrap() {
-        let (value, size) = read_varint(buf, offset)?;
-        let mut dec: Vec<u8> = vec![0; value as usize];
-        offset += size;
-        let edge = (offset + value) as usize;
-        dec.copy_from_slice(&buf[(offset as usize)..edge]);
-        offset += value;
-        packets.push(dec);
-    }
-    Ok(packets)
-}
-
-pub fn parse_packet(buf: &[u8], offset: u64) -> Result<Packet> {
-    let (name_value, name_size) = read_varint(buf, offset)?;
-    let mut x: Packet = match name_value {
-        1 => Login::new(buf, offset + name_size)?,
-        193 => RequestNetworkSetting::new(buf, offset + name_size)?,
-        _ => todo!(),
-    };
-    x.size += name_size;
-    Ok(x)
-}
-
-pub fn compose_packet(packet: Packet) -> Result<Vec<u8>> {
-    let mut buffer: Vec<u8> = Vec::new();
-    write_var_int(packet.id, &mut buffer).unwrap();
-    match packet.kind {
-        PacketTypes::NetworkSettings(pkt) => NetworkSettings::compose(&mut buffer, pkt)?,
-        PacketTypes::PlayStatus(pkt) => PlayStatus::compose(&mut buffer, pkt)?,
-        PacketTypes::Disconnect(pkt) => Disconnect::compose(&mut buffer, pkt)?,
-        _ => todo!(),
-    };
-    let mut result: Vec<u8> = Vec::new();
-    write_var_int(buffer.len() as u64, &mut result)?;
-    Ok([result, buffer].concat())
-}
-
-// pub fn compress(buf: &[u8]) -> Result<Vec<u8>> {
-//     let mut encoder = flate2::bufread::DeflateEncoder::new(&buf[..],Compression::new(7));
-//     let mut s:Vec<u8> = Vec::new();
-//     encoder.read_to_end(&mut s)?;
-//     Ok(s)
-// }
